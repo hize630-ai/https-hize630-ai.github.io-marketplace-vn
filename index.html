@@ -109,6 +109,8 @@ nav{min-width:0}
 .quest h3{font-size:17px}.quest small{color:var(--mute)}
 .quest>div{flex:1;min-width:0}
 .btn[disabled],.btn.off{opacity:.55;pointer-events:none}
+.up{display:flex;flex-direction:column;gap:6px;font-size:14px}.up small{color:var(--mute)}.authbox input[type=file]{padding:9px;cursor:pointer}.prev{width:100%;aspect-ratio:16/9;object-fit:cover;border:3px solid #000}.bar2{height:10px;background:#000;border:2px solid var(--line)}.bar2 i{display:block;height:100%;width:0;background:var(--g2);transition:width .15s}
+.empty{color:var(--mute);padding:10px 0}
 .note{margin-top:22px;padding:14px 16px;border:2px dashed var(--line);color:var(--mute);font-size:13px}
 .brand{min-width:0}
 .brand b{overflow:hidden;text-overflow:ellipsis}
@@ -147,6 +149,7 @@ nav{min-width:0}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script>
 /* ===== CHỈNH SỬA SẢN PHẨM Ở ĐÂY =====
    cat: addon | texture | skin | map ; price: Minecoin (0 = miễn phí)
@@ -169,26 +172,7 @@ const ICO = {
   minigame:'<svg viewBox="0 0 24 24"><path d="M3 8h18v9H3zM7 11v3M5.5 12.5h3M16 12h1M18 14h1"/></svg>',
   survival:'<svg viewBox="0 0 24 24"><path d="M12 3l8 5v8l-8 5-8-5V8z"/><path d="M12 9v6M9 12h6"/></svg>'
 };
-const P = [
-  {id:1,name:"One Block",creator:"Cộng đồng VN",cat:"map",price:0,rating:4.5,size:"12 MB",emoji:"🟩",c1:"#3c8527",c2:"#7a5230",link:"#",image:"",shots:[],
-   desc:"Bắt đầu chỉ với một khối duy nhất. Phá khối để mở khóa vật liệu, sinh vật và những giai đoạn mới. Thử thách sinh tồn độc đáo dành cho mọi người chơi."},
-  {id:2,name:"Dino Pack",creator:"Nhóm Addon VN",cat:"addon",price:480,rating:4.7,size:"48 MB",emoji:"🦖",c1:"#2f6b2f",c2:"#a6b43b",link:"#",image:"",shots:[],
-   desc:"Thêm khủng long có thể thuần hóa và cưỡi, kèm trứng, ADN và bàn nuôi cấy."},
-  {id:3,name:"Giao diện Pokémon UI",creator:"Studio Pixel",cat:"texture",price:160,rating:4.2,size:"6 MB",emoji:"🖼️",c1:"#2a5db0",c2:"#8e44ad",link:"#",image:"",shots:[],
-   desc:"Giao diện menu mới lấy cảm hứng từ phong cách Pokémon, tối ưu cho điện thoại."},
-  {id:4,name:"Rồng Băng",creator:"Yelior",cat:"addon",price:640,rating:4.8,size:"21 MB",emoji:"🐉",c1:"#2e86c1",c2:"#d6eaf8",link:"#",image:"",shots:[],
-   desc:"Rồng băng với mô hình, hoạt ảnh và bộ giáp riêng. Cưỡi rồng bay khắp thế giới."},
-  {id:5,name:"Rừng Hoàng Hôn",creator:"Nhóm Dựng Map",cat:"map",price:320,rating:4.4,size:"35 MB",emoji:"🌲",c1:"#1e3d2a",c2:"#6c3483",link:"#",image:"",shots:[],
-   desc:"Chiều không gian mới đầy bí ẩn với boss, hầm ngục và phần thưởng độc đáo."},
-  {id:6,name:"Làng Việt Skin Pack",creator:"Áo Dài Studio",cat:"skin",price:240,rating:4.6,size:"3 MB",emoji:"👘",c1:"#c0392b",c2:"#f5b041",link:"#",image:"",shots:[],
-   desc:"30 skin lấy cảm hứng từ trang phục truyền thống và văn hóa Việt Nam."},
-  {id:7,name:"Tài nguyên Cổ điển HD",creator:"Pixel VN",cat:"texture",price:0,rating:4.1,size:"18 MB",emoji:"🧱",c1:"#7f8c8d",c2:"#34495e",link:"#",image:"",shots:[],
-   desc:"Texture 32x độ phân giải cao, giữ nguyên cảm giác Minecraft cổ điển."},
-  {id:8,name:"Cổng Hoa",creator:"Garden Team",cat:"addon",price:0,rating:4.3,size:"9 MB",emoji:"🌸",c1:"#e91e8c",c2:"#f8c8dc",link:"#",image:"",shots:[],
-   desc:"Khối cổng đặc biệt dẫn tới chiều không gian vườn hoa rộng lớn."},
-  {id:9,name:"Cá Voi Biển Sâu",creator:"Ocean Mods",cat:"addon",price:400,rating:4.5,size:"27 MB",emoji:"🐋",c1:"#154360",c2:"#5dade2",link:"#",image:"",shots:[],
-   desc:"Cá nhà táng và sinh vật biển mới với mô hình, âm thanh và hoạt ảnh sống động."}
-];
+const P = []; /* Sản phẩm được đăng từ trang quản trị (lưu trên Firebase) */
 /* ===== HẾT PHẦN CHỈNH SỬA ===== */
 
 const $ = s => document.querySelector(s), V = $("#view");
@@ -207,9 +191,9 @@ function home(){
     <div class="sec-h"><h2 class="px">Danh mục</h2></div>
     <div class="catrows">${CATS.map(c=>`<a class="crow px" href="#/c/${c.id}">${ICO[c.id]}<span>${c.name}</span></a>`).join("")}</div>
     <div class="sec-h"><h2 class="px">Nổi bật</h2><a href="#/c/all">Xem tất cả ›</a></div>
-    <div class="grid">${P.slice(0,4).map(card).join("")}</div>
-    <div class="sec-h"><h2 class="px">Miễn phí</h2></div>
-    <div class="grid">${P.filter(p=>p.price===0).map(card).join("")}</div>
+    ${P.length?`<div class="grid">${P.slice(0,4).map(card).join("")}</div>`:'<p class="empty">Chưa có sản phẩm nào.</p>'}
+    ${P.some(p=>p.price===0)?`<div class="sec-h"><h2 class="px">Miễn phí</h2></div>
+    <div class="grid">${P.filter(p=>p.price===0).map(card).join("")}</div>`:""}
   </main>`;
 }
 function list(c, q=""){
@@ -300,10 +284,10 @@ function earn(){
     <div class="note">Xu chỉ dùng trong trang này để đổi sản phẩm, không phải Minecoin thật của Minecraft. Xu được lưu trên trình duyệt của bạn, nên đổi trình duyệt hoặc xóa dữ liệu sẽ mất xu.${fbOn()&&!user?'<br><a href="#/login" style="color:var(--g2);font-weight:700">Đăng nhập</a> để lưu xu trên mọi thiết bị.':''}</div></main>`;
 }
 /* ===== ĐĂNG NHẬP (Firebase) - điền thông tin dự án của bạn vào đây ===== */
-const FIREBASE_CONFIG = {apiKey:"AIzaSyCzsinZCOLvWgrJa1ZEg71XhrNtAs5_u0A",authDomain:"minecraft-vietnam-d77af.firebaseapp.com",projectId:"minecraft-vietnam-d77af",appId:"1:261614589808:web:a5777379ebc77cd36f21b5"};
+const FIREBASE_CONFIG = {apiKey:"AIzaSyCzsinZCOLvWgrJa1ZEg71XhrNtAs5_u0A",authDomain:"minecraft-vietnam-d77af.firebaseapp.com",projectId:"minecraft-vietnam-d77af",storageBucket:"minecraft-vietnam-d77af.firebasestorage.app",appId:"1:261614589808:web:a5777379ebc77cd36f21b5"};
 /* Email quản trị: đăng nhập bằng email này (đã xác minh) mới đăng được mod. */
 const ADMIN_EMAILS = ["hize630@gmail.com"];
-let user = null, db = null, auth = null, pushT;
+let user = null, db = null, auth = null, storage = null, pushT;
 const fbOn = () => !!FIREBASE_CONFIG.apiKey && typeof firebase !== "undefined";
 const DEF = () => ({coins:0,lastDaily:"",streak:0,done:{},owned:[]});
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -311,6 +295,7 @@ const nameOf = u => (u.displayName || u.email || "Tài khoản").split("@")[0];
 function updateAcc(){ document.querySelectorAll(".acc").forEach(a => a.textContent = user ? nameOf(user) : "Đăng nhập"); }
 if(fbOn()){
   firebase.initializeApp(FIREBASE_CONFIG); auth = firebase.auth(); db = firebase.firestore();
+  try{ storage = firebase.storage(); }catch(e){}
   loadProducts();
   auth.onAuthStateChanged(async u => {
     user = u;
@@ -335,13 +320,14 @@ function logout(){ auth.signOut().then(() => { S = DEF(); save(); location.hash 
 /* ===== ĐĂNG MOD (chỉ quản trị viên) ===== */
 const isAdminEmail = () => !!(user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 const isAdmin = () => isAdminEmail() && user.emailVerified;
+const okImg = u => okUrl(u) || /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(u || "");
 const okUrl = u => /^https?:\/\/[^\s'"()<>]+$/.test(u || "");
 const PAL = [["#3c8527","#7a5230"],["#2a5db0","#8e44ad"],["#c0392b","#f5b041"],["#154360","#5dade2"],["#1e3d2a","#6c3483"]];
 const clean = (id, d) => ({id, cloud:true, name:esc(d.name||""), creator:esc(d.creator||""),
   cat:CATS.some(c => c.id === d.cat) ? d.cat : "addon", price:Math.max(0, +d.price || 0),
   rating:Math.min(5, +d.rating || 5), size:esc(d.size||"—"), emoji:esc(d.emoji||"📦"),
   c1:/^#[0-9a-f]{6}$/i.test(d.c1) ? d.c1 : "#3c8527", c2:/^#[0-9a-f]{6}$/i.test(d.c2) ? d.c2 : "#7a5230",
-  link:okUrl(d.link) ? d.link : "#", image:okUrl(d.image) ? d.image : "", shots:[], desc:esc(d.desc||"")});
+  link:okUrl(d.link) ? d.link : "#", image:okImg(d.image) ? d.image : "", path:esc(d.path||""), shots:[], desc:esc(d.desc||"")});
 function loadProducts(){
   db.collection("products").orderBy("created","desc").get().then(s => {
     for(let i = P.length - 1; i >= 0; i--) if(P[i].cloud) P.splice(i, 1);
@@ -361,34 +347,84 @@ function admin(){
       <input id="m_creator" placeholder="Tác giả *" maxlength="40">
       <select id="m_cat">${CATS.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
       <input id="m_price" type="number" min="0" placeholder="Giá (xu), 0 = miễn phí" value="0">
-      <input id="m_size" placeholder="Dung lượng, ví dụ 12 MB" maxlength="20">
-      <input id="m_link" placeholder="Link tải trực tiếp .mcaddon/.mcpack (https://...) *">
-      <input id="m_img" placeholder="Link ảnh bìa (https://..., tùy chọn)">
+      <label class="up"><b>File Addon *</b> <small>.mcaddon · .mcpack · .mcworld · .mctemplate · .zip (tối đa 100 MB)</small>
+        <input id="m_file" type="file" accept=".mcaddon,.mcpack,.mcworld,.mctemplate,.zip"></label>
+      <label class="up"><b>Ảnh bìa</b> <small>PNG / JPG / WEBP (tự động thu nhỏ)</small>
+        <input id="m_imgf" type="file" accept="image/png,image/jpeg,image/webp"></label>
+      <img id="m_prev" class="prev" alt="" hidden>
       <textarea id="m_desc" rows="5" placeholder="Mô tả *" maxlength="1500"></textarea>
+      <div class="bar2" id="m_bar" hidden><i id="m_fill"></i></div>
       <p id="m_msg" style="min-height:20px;font-size:14px"></p>
-      <a class="btn" href="#" onclick="postMod();return false">Đăng</a></div>
+      <a class="btn" id="m_btn" href="#" onclick="postMod();return false">Đăng</a></div>
     <div class="sec-h"><h2 class="px">Mod đã đăng (${mine.length})</h2></div>
-    <div class="quests">${mine.map(p => `<div class="quest"><div><h3>${p.name}</h3><small>${cn(p.cat)} · ${p.price} xu</small></div><a class="btn sm grey" href="#" onclick="delMod('${p.id}');return false">Xóa</a></div>`).join("") || '<p style="color:var(--mute)">Chưa có mod nào.</p>'}</div></main>`;
+    <div class="quests">${mine.map(p => `<div class="quest"><div><h3>${p.name}</h3><small>${cn(p.cat)} · ${p.price} xu · ${p.size}</small></div><a class="btn sm grey" href="#" onclick="delMod('${p.id}');return false">Xóa</a></div>`).join("") || '<p style="color:var(--mute)">Chưa có mod nào.</p>'}</div></main>`;
+  $("#m_imgf").onchange = async e => {
+    const f = e.target.files[0], pv = $("#m_prev");
+    if(!f){ pv.hidden = true; return; }
+    try{ pv.src = await shrink(f); pv.hidden = false; }catch(x){ pv.hidden = true; }
+  };
 }
+/* Thu nhỏ ảnh về tối đa 1000px, JPEG, để lưu gọn trong Firestore */
+function shrink(file){
+  return new Promise((ok, no) => {
+    const fr = new FileReader();
+    fr.onerror = () => no(); 
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = () => no();
+      im.onload = () => {
+        const k = Math.min(1, 1000 / Math.max(im.width, im.height)), c = document.createElement("canvas");
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        let q = .85, u = c.toDataURL("image/jpeg", q);
+        while(u.length > 600000 && q > .4){ q -= .1; u = c.toDataURL("image/jpeg", q); }
+        ok(u);
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1).replace(".0","") + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 async function postMod(){
   if(!isAdmin()) return;
-  const g = id => $("#" + id).value.trim(), msg = $("#m_msg"), bad = t => { msg.style.color = "#ff7b7b"; msg.textContent = t; };
-  const d = {name:g("m_name"), creator:g("m_creator"), cat:g("m_cat"), price:Math.max(0, parseInt(g("m_price")) || 0), size:g("m_size") || "—", link:g("m_link"), image:g("m_img"), desc:g("m_desc")};
+  const g = id => $("#" + id).value.trim(), msg = $("#m_msg"), btn = $("#m_btn"), bar = $("#m_bar"), fill = $("#m_fill");
+  const bad = t => { msg.style.color = "#ff7b7b"; msg.textContent = t; btn.classList.remove("off"); bar.hidden = true; };
+  const file = $("#m_file").files[0], img = $("#m_imgf").files[0];
+  const d = {name:g("m_name"), creator:g("m_creator"), cat:g("m_cat"), price:Math.max(0, parseInt(g("m_price")) || 0), desc:g("m_desc")};
   if(!d.name || !d.creator || !d.desc) return bad("Vui lòng điền tên, tác giả và mô tả.");
-  if(!okUrl(d.link) || (d.image && !okUrl(d.image))) return bad("Link tải hoặc link ảnh không hợp lệ (phải bắt đầu bằng https://).");
-  const c = PAL[Math.floor(Math.random() * PAL.length)];
-  Object.assign(d, {rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:user.uid});
+  if(!file) return bad("Vui lòng chọn file Addon để tải lên.");
+  if(!/\.(mcaddon|mcpack|mcworld|mctemplate|zip)$/i.test(file.name)) return bad("File phải là .mcaddon, .mcpack, .mcworld, .mctemplate hoặc .zip.");
+  if(file.size > 100 * 1048576) return bad("File quá lớn (tối đa 100 MB).");
+  if(!storage) return bad("Chưa bật Firebase Storage cho dự án.");
+  btn.classList.add("off"); msg.style.color = "var(--mute)"; msg.textContent = "Đang tải lên..."; bar.hidden = false; fill.style.width = "0%";
   try{
+    d.image = img ? await shrink(img) : "";
+    const safe = file.name.replace(/[^\w.\-]+/g, "_");
+    d.path = `addons/${user.uid}/${Date.now()}_${safe}`;
+    const ref = storage.ref(d.path);
+    const task = ref.put(file);
+    await new Promise((res, rej) => task.on("state_changed",
+      s => { const p = Math.round(s.bytesTransferred / s.totalBytes * 100); fill.style.width = p + "%"; msg.textContent = "Đang tải lên... " + p + "%"; },
+      rej, res));
+    d.link = await ref.getDownloadURL();
+    d.size = fmtSize(file.size);
+    const c = PAL[Math.floor(Math.random() * PAL.length)];
+    Object.assign(d, {rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:user.uid});
     const r = await db.collection("products").add(d);
     P.unshift(clean(r.id, d)); admin();
     const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã đăng thành công ✓";
-  }catch(e){ bad("Không đăng được. Kiểm tra Firestore Rules và email quản trị."); }
+  }catch(e){
+    bad("Không đăng được. Kiểm tra Storage Rules, Firestore Rules và email quản trị." + (e && e.code ? " (" + e.code + ")" : ""));
+  }
 }
 async function delMod(id){
   if(!isAdmin() || !confirm("Xóa mod này?")) return;
+  const p = P.find(x => x.id === id);
   try{
     await db.collection("products").doc(id).delete();
-    const i = P.findIndex(p => p.id === id); if(i > -1) P.splice(i, 1);
+    if(p && p.path && storage){ try{ await storage.ref(p.path).delete(); }catch(e){} }
+    const i = P.findIndex(x => x.id === id); if(i > -1) P.splice(i, 1);
     admin();
   }catch(e){ alert("Không xóa được."); }
 }
