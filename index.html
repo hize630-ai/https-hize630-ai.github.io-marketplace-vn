@@ -115,6 +115,8 @@ nav{min-width:0}
 .brand{min-width:0}
 .brand b{overflow:hidden;text-overflow:ellipsis}
 .right{flex-shrink:0}
+#langBtn{min-width:48px;text-align:center}.qnote{color:var(--mute);font-size:13px;margin:-4px 0 12px}
+@media(max-width:860px){#langBtn{display:none}}
 @media(max-width:860px){nav{display:none}.pdp{grid-template-columns:1fr}.filters input{margin-left:0;width:100%;min-width:0}.brand{margin-right:0;flex:1}.brand i{flex-shrink:0;width:26px;height:26px}.brand b{font-size:13px;line-height:1.15;white-space:normal}.logo{height:34px;max-width:100%;object-fit:contain;object-position:left}.coins{font-size:12px;gap:4px}.days{gap:4px}.day{font-size:11px}.quest{flex-wrap:wrap}.btn.sm{padding:7px 12px;font-size:12px;white-space:nowrap}.wrap{padding:0 14px}.bar{height:56px;gap:10px}.hero{min-height:280px}.sec-h h2{font-size:22px}.cats{grid-template-columns:1fr 1fr}.cat{height:110px}.cat span{font-size:36px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.thumb{font-size:42px}.cinfo h3{font-size:15px}.side h1{font-size:26px}.pdp .main{font-size:80px}}
 </style>
 </head>
@@ -133,6 +135,7 @@ nav{min-width:0}
     <div class="right">
       <a class="coins" href="#/earn" title="Số dư xu"><span class="mc"></span> <span id="bal">0</span> xu</a>
       <a class="btn sm ghost earnbtn" href="#/earn">Kiếm xu ›</a>
+      <a class="btn sm ghost langbtn" id="langBtn" href="#" title="Ngôn ngữ / Language">EN</a>
       <a class="btn sm grey acc" id="acc" href="#/login">Đăng nhập</a>
       <button class="hex" id="menuBtn" aria-label="Menu">☰</button>
     </div>
@@ -222,17 +225,21 @@ function item(id){
 }
 /* ===== HỆ THỐNG XU (lưu trong trình duyệt của từng người) ===== */
 const QUESTS = [
-  {id:"yt",name:"Theo dõi kênh YouTube",reward:30,link:"https://www.youtube.com/",once:true},
-  {id:"dc",name:"Tham gia Discord cộng đồng",reward:30,link:"https://discord.com/",once:true},
-  {id:"fb",name:"Theo dõi fanpage Facebook",reward:20,link:"https://www.facebook.com/",once:true},
+  {id:"yt",name:"Theo dõi kênh YouTube",reward:30,link:"https://www.youtube.com/",once:false},
+  {id:"dc",name:"Tham gia Discord cộng đồng",reward:30,link:"https://discord.com/",once:false},
+  {id:"fb",name:"Theo dõi fanpage Facebook",reward:20,link:"https://www.facebook.com/",once:false},
   {id:"share",name:"Chia sẻ trang cho bạn bè",reward:10,link:"share",once:false}
 ];
 const DAILY = [10,10,15,15,20,20,50];
 const KEY = "mmvn_state";
 let S = {coins:0,lastDaily:"",streak:0,done:{},owned:[]}, busy = {};
 try{ Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); }catch(e){}
-const today = () => new Date().toISOString().slice(0,10);
-const yest = () => new Date(Date.now() - 864e5).toISOString().slice(0,10);
+/* Ngày tính theo giờ địa phương của người dùng: mọi nhiệm vụ làm mới lúc 0h. */
+const ymd = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const today = () => ymd(new Date());
+const yest = () => { const d = new Date(); d.setDate(d.getDate() - 1); return ymd(d); };
+const dayDiff = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 864e5);
+const RESET_AFTER = 2; /* sau khi nhận xong ngày 7, điểm danh được làm mới sau bấy nhiêu ngày */
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
   if(user && db){ clearTimeout(pushT); pushT = setTimeout(() => db.collection("users").doc(user.uid).set(S).catch(()=>{}), 600); }
@@ -250,12 +257,16 @@ function redeem(id){
 }
 function checkin(){
   const t = today(); if(S.lastDaily === t) return;
-  S.streak = S.lastDaily === yest() ? S.streak + 1 : 1;
-  S.coins += DAILY[(S.streak-1) % 7]; S.lastDaily = t; save(); earn();
+  if(S.streak >= 7){
+    if(S.lastDaily && dayDiff(S.lastDaily, t) < RESET_AFTER) return; /* đã đủ 7 ngày, đang chờ làm mới */
+    S.streak = 0;
+  } else if(S.lastDaily !== yest()) S.streak = 0;
+  S.streak += 1;
+  S.coins += DAILY[S.streak - 1]; S.lastDaily = t; save(); earn();
 }
 function doQuest(id){
   const q = QUESTS.find(x => x.id === id), t = today();
-  if(busy[id] || (q.once ? S.done[id] : S.done[id] === t)) return;
+  if(busy[id] || S.done[id] === t) return;
   if(q.link === "share"){
     const d = {title:document.title, url:location.href.split("#")[0]};
     if(navigator.share) navigator.share(d).catch(()=>{});
@@ -263,23 +274,30 @@ function doQuest(id){
   } else window.open(q.link, "_blank", "noopener");
   busy[id] = true; earn();
   setTimeout(() => {
-    busy[id] = false; S.done[id] = q.once ? true : t; S.coins += q.reward; save();
+    busy[id] = false; S.done[id] = t; S.coins += q.reward; save();
     if(location.hash === "#/earn") earn();
   }, 10000);
 }
 function earn(){
   const t = today(), done = S.lastDaily === t;
-  const ok = done ? ((S.streak-1) % 7) + 1 : (S.lastDaily === yest() ? S.streak % 7 : 0);
+  let ok, wait = 0;
+  if(S.streak >= 7 && S.lastDaily){
+    const df = dayDiff(S.lastDaily, t);
+    if(df < RESET_AFTER){ ok = 7; wait = RESET_AFTER - df; } else ok = 0;
+  } else ok = done ? S.streak : (S.lastDaily === yest() ? S.streak : 0);
+  const locked = done || wait > 0;
+  const ciText = wait > 0 ? `Hoàn thành 7 ngày ✓ · làm mới sau ${wait} ngày` : done ? "Hôm nay đã điểm danh ✓" : "Điểm danh nhận xu";
   V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › Kiếm xu</div>
     <h1 class="px" style="font-size:36px">Kiếm xu</h1>
     <p style="color:var(--mute);margin-top:4px">Số dư hiện tại: <b style="color:#fff"><span class="mc"></span> ${isAdmin() ? "∞ (vô hạn)" : S.coins.toLocaleString("vi-VN")} xu</b></p>
     <div class="sec-h" style="margin-top:28px"><h2 class="px">Điểm danh hằng ngày</h2></div>
     <div class="days">${DAILY.map((r,i)=>`<div class="day ${i<ok?"ok":""}">Ngày ${i+1}<b>+${r}</b></div>`).join("")}</div>
-    <a class="btn ${done?"off":""}" href="#" onclick="checkin();return false">${done?"Hôm nay đã điểm danh ✓":"Điểm danh nhận xu"}</a>
+    <a class="btn ${locked?"off":""}" href="#" onclick="checkin();return false">${ciText}</a>
     <div class="sec-h"><h2 class="px">Nhiệm vụ</h2></div>
+    <p class="qnote">Nhiệm vụ được làm mới vào 0h mỗi ngày. Điểm danh đủ 7 ngày sẽ làm mới sau 2 ngày.</p>
     <div class="quests">${QUESTS.map(q=>{
-      const d = q.once ? S.done[q.id] : S.done[q.id] === t, b = busy[q.id];
-      return `<div class="quest"><div><h3>${q.name}</h3><small>+${q.reward} xu ${q.once?"· một lần":"· mỗi ngày"}</small></div>
+      const d = S.done[q.id] === t, b = busy[q.id];
+      return `<div class="quest"><div><h3>${q.name}</h3><small>+${q.reward} xu · mỗi ngày</small></div>
         <a class="btn sm ${d||b?"off":""}" href="#" onclick="doQuest('${q.id}');return false">${d?"Đã nhận ✓":b?"Đang xác nhận...":"Làm ngay"}</a></div>`;}).join("")}</div>
     <div class="note">Xu chỉ dùng trong trang này để đổi sản phẩm, không phải Minecoin thật của Minecraft. Xu được lưu trên trình duyệt của bạn, nên đổi trình duyệt hoặc xóa dữ liệu sẽ mất xu.${fbOn()&&!user?'<br><a href="#/login" style="color:var(--g2);font-weight:700">Đăng nhập</a> để lưu xu trên mọi thiết bị.':''}</div></main>`;
 }
@@ -530,9 +548,121 @@ function route(){
 function buildNav(){
   $("#nav").innerHTML = `<a href="#/" data-n="home">Trang chủ</a>` +
     CATS.map(c => `<a href="#/c/${c.id}" data-n="${c.id}">${c.name}</a>`).join("") +
-    `<a href="#/submit" data-n="submit">Gửi Addon</a><a href="#/earn" data-n="earn">Kiếm xu</a><a href="#/login" class="acc m-only">Đăng nhập</a>`;
+    `<a href="#/submit" data-n="submit">Gửi Addon</a><a href="#/earn" data-n="earn">Kiếm xu</a><a href="#" class="langbtn m-only">EN</a><a href="#/login" class="acc m-only">Đăng nhập</a>`;
 }
-buildNav(); updateAcc();
+
+/* ===== NGÔN NGỮ / LANGUAGE (Tiếng Việt · English) ===== */
+const EN = {
+"Trang chủ":"Home","Thế giới":"Worlds","Kiếm xu":"Earn coins","Kiếm xu ›":"Earn coins ›","xu":"coins","Đăng nhập":"Log in","Gửi Addon":"Submit Addon",
+"Bản đồ phiêu lưu":"Adventure Maps","Số dư xu":"Coin balance","Ngôn ngữ / Language":"Ngôn ngữ / Language",
+"Minecraft Marketplace VietNam":"Minecraft Marketplace VietNam",
+"© 2026 Minecraft Marketplace VietNam. Trang cộng đồng, không phải trang chính thức.":"© 2026 Minecraft Marketplace VietNam. Community site, not an official site.",
+"Minecraft là thương hiệu của Mojang AB / Microsoft. Trang này không liên kết với Mojang hay Microsoft.":"Minecraft is a trademark of Mojang AB / Microsoft. This site is not affiliated with Mojang or Microsoft.",
+"Add-On, Texture Pack, Skin Pack và thế giới do cộng đồng Minecraft Việt Nam sáng tạo.":"Add-Ons, Texture Packs, Skin Packs and worlds created by the Vietnamese Minecraft community.",
+"Khám phá Marketplace":"Explore Marketplace","Danh mục":"Categories","Nổi bật":"Featured","Xem tất cả ›":"See all ›",
+"Chưa có sản phẩm nào.":"No products yet.","Miễn phí":"Free","Tất cả":"All","Tìm kiếm...":"Search...","Không tìm thấy sản phẩm.":"No products found.",
+"Mô tả":"Description","Tác giả:":"Author:","Tải & nạp vào Minecraft":"Download & import into Minecraft",
+"Tải xong, mở file .mcaddon / .mcpack / .mcworld trong thông báo hoặc app Tệp. Minecraft sẽ tự mở và nhập vào game.":"After downloading, open the .mcaddon / .mcpack / .mcworld file from the notification or your Files app. Minecraft will open and import it automatically.",
+"Quay lại":"Back","Loại":"Type","Dung lượng":"Size","Nền tảng":"Platform",
+"Số dư hiện tại:":"Current balance:","∞ (vô hạn)":"∞ (unlimited)","Điểm danh hằng ngày":"Daily check-in","Điểm danh nhận xu":"Check in to claim coins",
+"Hôm nay đã điểm danh ✓":"Checked in today ✓","Nhiệm vụ":"Quests",
+"Nhiệm vụ được làm mới vào 0h mỗi ngày. Điểm danh đủ 7 ngày sẽ làm mới sau 2 ngày.":"Quests reset at midnight every day. After completing the 7-day check-in, it resets 2 days later.",
+"Theo dõi kênh YouTube":"Follow our YouTube channel","Tham gia Discord cộng đồng":"Join the community Discord","Theo dõi fanpage Facebook":"Follow our Facebook page","Chia sẻ trang cho bạn bè":"Share the site with friends",
+"Làm ngay":"Do it now","Đã nhận ✓":"Claimed ✓","Đang xác nhận...":"Verifying...",
+"Xu chỉ dùng trong trang này để đổi sản phẩm, không phải Minecoin thật của Minecraft. Xu được lưu trên trình duyệt của bạn, nên đổi trình duyệt hoặc xóa dữ liệu sẽ mất xu.":"Coins can only be used on this site to redeem products. They are not real Minecraft Minecoins. Coins are stored in your browser, so switching browsers or clearing data will lose them.",
+"để lưu xu trên mọi thiết bị.":"to save your coins on all devices.",
+"Chưa cấu hình đăng nhập. Mở file HTML và điền":"Login is not configured. Open the HTML file and fill in","trong phần script.":"in the script section.",
+"Xin chào,":"Hello,","Quản trị & đăng mod":"Admin & post mods",
+"Email quản trị chưa được xác minh. Hãy đăng nhập bằng Google hoặc xác minh email để đăng mod.":"Admin email is not verified. Sign in with Google or verify your email to post mods.",
+"Gửi email xác minh":"Send verification email","Gửi yêu cầu đăng Addon":"Submit an Addon request","Đăng xuất":"Log out","Tài khoản":"Account",
+"Mật khẩu (từ 6 ký tự)":"Password (6+ characters)","Tạo tài khoản":"Create account","Đăng nhập với Google":"Sign in with Google",
+"Sai email hoặc mật khẩu.":"Wrong email or password.","Vui lòng nhập email và mật khẩu hợp lệ.":"Please enter a valid email and password.","Email này đã được đăng ký.":"This email is already registered.",
+"Mật khẩu cần ít nhất 6 ký tự.":"Password must be at least 6 characters.","Bạn đã đóng cửa sổ đăng nhập.":"You closed the sign-in window.","Thử quá nhiều lần, vui lòng đợi một lúc.":"Too many attempts, please wait a moment.",
+"Có lỗi xảy ra, vui lòng thử lại.":"Something went wrong, please try again.",
+"Cần xác minh email":"Email verification required","Hãy xác minh email để gửi Addon (đăng nhập bằng Google sẽ được xác minh sẵn).":"Verify your email to submit Addons (Google sign-in is verified automatically).",
+"Bạn cần đăng nhập để gửi Addon.":"You need to log in to submit an Addon.","Chỉ dành cho quản trị viên":"Administrators only","Hãy đăng nhập bằng tài khoản quản trị của bạn để đăng mod.":"Log in with your admin account to post mods.",
+"Đăng mod mới":"Post new mod","Yêu cầu sẽ được quản trị viên xem xét trước khi hiển thị trên trang. Giá do quản trị viên quyết định.":"Requests are reviewed by an admin before appearing on the site. The admin decides the price.",
+"Tên mod *":"Mod name *","Tác giả *":"Author *","Giá (xu), 0 = miễn phí":"Price (coins), 0 = free","Link tải MediaFire *":"MediaFire download link *",
+"Tải file (.mcaddon / .mcpack / .mcworld / .zip) lên MediaFire rồi dán link vào đây":"Upload your file (.mcaddon / .mcpack / .mcworld / .zip) to MediaFire, then paste the link here",
+"Dung lượng, ví dụ 12 MB (không bắt buộc)":"Size, e.g. 12 MB (optional)","Ảnh bìa":"Cover image","PNG / JPG / WEBP (tự động thu nhỏ)":"PNG / JPG / WEBP (auto-resized)","Mô tả *":"Description *",
+"Đăng":"Post","Gửi yêu cầu":"Submit request","Yêu cầu chờ duyệt":"Pending requests","Đang tải...":"Loading...","Không có yêu cầu nào.":"No requests.",
+'Không tải được yêu cầu. Kiểm tra Firestore Rules cho "submissions".':'Could not load requests. Check the Firestore Rules for "submissions".',
+"Tải thử":"Test download","Duyệt":"Approve","Từ chối":"Reject","Xóa":"Delete","Hủy":"Cancel","Chưa có mod nào.":"No mods yet.","Quản trị":"Admin",
+"Yêu cầu của bạn":"Your requests","Bạn chưa gửi yêu cầu nào đang chờ duyệt.":"You have no pending requests.",
+"Vui lòng điền tên, tác giả và mô tả.":"Please fill in the name, author and description.","Vui lòng dán link MediaFire của file Addon.":"Please paste the MediaFire link of your Addon file.",
+"Link phải là link MediaFire hợp lệ (bắt đầu bằng https://www.mediafire.com/).":"The link must be a valid MediaFire link (starting with https://www.mediafire.com/).",
+"Đang gửi...":"Sending...","Đã đăng thành công ✓":"Posted successfully ✓","Đã gửi yêu cầu ✓ Quản trị viên sẽ xem xét sớm.":"Request sent ✓ An admin will review it soon.",
+"Link file không hợp lệ.":"Invalid file link.","Giá (xu), 0 = miễn phí:":"Price (coins), 0 = free:","Không duyệt được. Kiểm tra Firestore Rules.":"Could not approve. Check the Firestore Rules.",
+"Từ chối và xóa yêu cầu này?":"Reject and delete this request?","Không xóa được.":"Could not delete.","Hủy yêu cầu này?":"Cancel this request?","Không hủy được.":"Could not cancel.","Xóa mod này?":"Delete this mod?",
+"Đã gửi email xác minh. Sau khi xác minh, hãy đăng nhập lại.":"Verification email sent. After verifying, please log in again.","Đã gửi email xác minh.":"Verification email sent."
+};
+const ENP = [
+ [/^Đổi ([\d.,]+) xu$/, "Redeem $1 coins"],
+ [/^Cần thêm ([\d.,]+) xu · Kiếm xu$/, "Need $1 more coins · Earn coins"],
+ [/^› (.+)$/, (m,a)=>"› "+trEN(a)],
+ [/^Ngày (\d+)$/, "Day $1"],
+ [/^(∞ \(vô hạn\)|[\d.,]+) xu$/, (m,a)=>(a.startsWith("∞")?"∞ (unlimited)":a)+" coins"],
+ [/^\+(\d+) xu · mỗi ngày$/, "+$1 coins · daily"],
+ [/^Hoàn thành 7 ngày ✓ · làm mới sau (\d+) ngày$/, (m,n)=>"7 days complete ✓ · resets in "+n+(n==1?" day":" days")],
+ [/^· Đã sở hữu (.+) sản phẩm$/, (m,a)=>"· Owns "+(a==="tất cả"?"all":a)+" products"],
+ [/^Mod đã đăng \((\d+)\)$/, "Posted mods ($1)"],
+ [/^Tác giả: (.*)$/, "Author: $1"],
+ [/^Gửi bởi (.*)$/, "Sent by $1"],
+ [/^Đang chờ duyệt$/, "Pending review"],
+ [/^(Không gửi được\. Kiểm tra) Firestore Rules và tài khoản\.(.*)$/, "Could not send. Check Firestore Rules and your account.$2"]
+];
+let LANG = "vi";
+try{ LANG = localStorage.getItem("mmvn_lang") === "en" ? "en" : "vi"; }catch(e){}
+function trEN(str){
+  const t = str.trim(); if(!t) return str;
+  const lead = str.slice(0, str.indexOf(t)), tail = str.slice(str.indexOf(t) + t.length);
+  const one = x => {
+    if(EN[x] !== undefined) return EN[x];
+    for(const [re, to] of ENP) if(re.test(x)) return x.replace(re, to);
+    return x;
+  };
+  let out = one(t);
+  if(out === t && t.includes(" · ")) out = t.split(" · ").map(one).join(" · ");
+  return lead + out + tail;
+}
+const TR = s => LANG === "en" ? trEN(String(s)) : String(s);
+const _txt = new WeakMap(), _att = new WeakMap();
+let _applying = false;
+function applyLang(){
+  if(_applying) return; _applying = true;
+  try{
+    document.documentElement.lang = LANG;
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {acceptNode: n => /^(SCRIPT|STYLE|TEXTAREA)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+    let n;
+    while(n = w.nextNode()){
+      if(!_txt.has(n)) _txt.set(n, n.nodeValue);
+      const o = _txt.get(n), v = LANG === "en" ? trEN(o) : o;
+      if(n.nodeValue !== v) n.nodeValue = v;
+    }
+    document.querySelectorAll("[placeholder],[title],[aria-label]").forEach(el => {
+      let m = _att.get(el); if(!m){ m = {}; _att.set(el, m); }
+      ["placeholder","title","aria-label"].forEach(a => {
+        if(!el.hasAttribute(a)) return;
+        if(m[a] === undefined) m[a] = el.getAttribute(a);
+        const v = LANG === "en" ? trEN(m[a]) : m[a];
+        if(el.getAttribute(a) !== v) el.setAttribute(a, v);
+      });
+    });
+    document.querySelectorAll(".langbtn").forEach(b => { const v = LANG === "en" ? "VI" : "EN"; if(b.textContent !== v) b.textContent = v; });
+  } finally { _applying = false; }
+}
+function setLang(l){ LANG = l; try{ localStorage.setItem("mmvn_lang", l); }catch(e){} applyLang(); }
+const _alert = window.alert.bind(window), _confirm = window.confirm.bind(window), _prompt = window.prompt.bind(window);
+window.alert = m => _alert(TR(m)); window.confirm = m => _confirm(TR(m)); window.prompt = (m, d) => _prompt(TR(m), d);
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".langbtn"); if(!b) return;
+  e.preventDefault(); setLang(LANG === "en" ? "vi" : "en");
+});
+new MutationObserver(() => applyLang()).observe(document.body, {childList:true, subtree:true});
+buildNav(); updateAcc(); applyLang();
+/* Qua ngày mới khi đang mở trang Kiếm xu thì tự làm mới */
+let _day = today();
+setInterval(() => { if(today() !== _day){ _day = today(); if(location.hash === "#/earn") earn(); } }, 30000);
 $("#menuBtn").onclick = () => $("#nav").classList.toggle("open");
 $("#nav").addEventListener("click", () => $("#nav").classList.remove("open"));
 addEventListener("hashchange", route); route();
