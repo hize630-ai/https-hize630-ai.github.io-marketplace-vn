@@ -118,6 +118,28 @@ nav{min-width:0}
 #langBtn{min-width:48px;text-align:center}.qnote{color:var(--mute);font-size:13px;margin:-4px 0 12px}
 @media(max-width:860px){#langBtn{display:none}}
 @media(max-width:860px){nav{display:none}.pdp{grid-template-columns:1fr}.filters input{margin-left:0;width:100%;min-width:0}.brand{margin-right:0;flex:1}.brand i{flex-shrink:0;width:26px;height:26px}.brand b{font-size:13px;line-height:1.15;white-space:normal}.logo{height:34px;max-width:100%;object-fit:contain;object-position:left}.coins{font-size:12px;gap:4px}.days{gap:4px}.day{font-size:11px}.quest{flex-wrap:wrap}.btn.sm{padding:7px 12px;font-size:12px;white-space:nowrap}.wrap{padding:0 14px}.bar{height:56px;gap:10px}.hero{min-height:280px}.sec-h h2{font-size:22px}.cats{grid-template-columns:1fr 1fr}.cat{height:110px}.cat span{font-size:36px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.thumb{font-size:42px}.cinfo h3{font-size:15px}.side h1{font-size:26px}.pdp .main{font-size:80px}}
+/* ----- sửa tràn màn hình trên máy tính / chế độ "Trang web cho máy tính" ----- */
+nav a{white-space:nowrap}
+.by,.side h1,.desc p,.cinfo h3,.cinfo small,.quest h3,.quest small,.crumb,.kv dd{overflow-wrap:anywhere;word-break:break-word}
+.side,.pdp>*,.quest>div,.authbox{min-width:0;max-width:100%}
+.btn{max-width:100%;white-space:normal}
+@media(min-width:861px){
+ .bar{flex-wrap:wrap;height:auto;padding-top:8px;row-gap:0}
+ .brand{order:1}.right{order:2}
+ nav{order:3;flex:0 0 100%;overflow-x:auto;scrollbar-width:none;gap:0}
+ nav::-webkit-scrollbar{display:none}
+ nav a{padding:10px 12px 8px;font-size:13px}
+}
+@media(min-width:861px) and (max-width:1100px){nav a{padding:10px 6px 8px;font-size:12px;letter-spacing:.2px}}
+/* ----- thư viện ảnh ----- */
+.pdp .main{position:relative;touch-action:pan-y}
+.gnav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:56px;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:28px;line-height:1;cursor:pointer;z-index:2}
+.gnav:hover{background:var(--g1)}.gnav.l{left:0}.gnav.r{right:0}
+.gcount{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;z-index:2}
+.shots div.on{opacity:1;border-color:var(--g2)}
+.shotprev{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.shotprev img{width:100%;aspect-ratio:16/9;object-fit:cover;border:2px solid #000}
+.shotprev:empty{display:none}
 </style>
 </head>
 <body>
@@ -210,10 +232,13 @@ function list(c, q=""){
 }
 function item(id){
   const p = P.find(x => x.id == id); if(!p) return home();
-  const shots = p.shots.length ? p.shots.map(s=>`<div style="background:url('${s}') center/cover"></div>`).join("")
+  const imgs = [p.image, ...p.shots].filter(Boolean);
+  GAL = {imgs, i:0};
+  const shots = imgs.length ? imgs.map((s,i)=>`<div class="${i?"":"on"}" data-i="${i}" onclick="galGo(${i},true)" style="background:url('${s}') center/cover"></div>`).join("")
     : [0,1,2,3].map(i=>`<div style="${bg(p)};filter:hue-rotate(${i*25}deg)">${p.emoji}</div>`).join("");
+  const nav = imgs.length > 1 ? `<button class="gnav l" aria-label="Ảnh trước" onclick="galGo(-1);return false">‹</button><button class="gnav r" aria-label="Ảnh sau" onclick="galGo(1);return false">›</button><span class="gcount" id="gcount">1 / ${imgs.length}</span>` : "";
   V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › <a href="#/c/${p.cat}">${cn(p.cat)}</a> › ${p.name}</div>
-    <div class="pdp"><div><div class="main" style="${bg(p)}">${p.image?"":p.emoji}</div><div class="shots">${shots}</div>
+    <div class="pdp"><div><div class="main" id="gmain" style="${imgs.length ? `background-image:url('${imgs[0]}')` : bg(p)}">${imgs.length?"":p.emoji}${nav}</div><div class="shots" style="grid-template-columns:repeat(${Math.max(4, imgs.length)},1fr)">${shots}</div>
       <div class="desc"><h2 class="px">Mô tả</h2><p>${p.desc}</p></div></div>
     <aside class="side"><h1 class="px">${p.name}</h1><div class="by">Tác giả: <b>${p.creator}</b></div>
       <div class="stars">${stars(p.rating)} <span style="color:var(--mute);letter-spacing:0">${p.rating.toFixed(1)}</span></div>
@@ -223,6 +248,24 @@ function item(id){
       <a class="btn grey" href="#/c/${p.cat}">Quay lại</a>
       <dl class="kv"><dt>Loại</dt><dd>${cn(p.cat)}</dd><dt>Dung lượng</dt><dd>${p.size}</dd><dt>Nền tảng</dt><dd>Bedrock Edition</dd></dl></aside></div></main>`;
 }
+/* ===== THƯ VIỆN ẢNH trên trang sản phẩm ===== */
+let GAL = {imgs:[], i:0};
+function galGo(n, abs){
+  const g = GAL, len = g.imgs.length; if(len < 2) return;
+  g.i = abs ? n : (g.i + n + len) % len;
+  const m = $("#gmain"); if(!m) return;
+  m.style.backgroundImage = "url('" + g.imgs[g.i] + "')";
+  document.querySelectorAll(".shots div").forEach((d, i) => d.classList.toggle("on", i === g.i));
+  const c = $("#gcount"); if(c) c.textContent = (g.i + 1) + " / " + len;
+}
+document.addEventListener("keydown", e => {
+  if(!location.hash.startsWith("#/p/") || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).nodeName)) return;
+  if(e.key === "ArrowLeft") galGo(-1); else if(e.key === "ArrowRight") galGo(1);
+});
+(() => { let x0 = null;
+  document.addEventListener("touchstart", e => { x0 = e.target.closest && e.target.closest("#gmain") ? e.touches[0].clientX : null; }, {passive:true});
+  document.addEventListener("touchend", e => { if(x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if(Math.abs(dx) > 40) galGo(dx < 0 ? 1 : -1); }, {passive:true});
+})();
 /* ===== HỆ THỐNG XU (lưu trong trình duyệt của từng người) ===== */
 const QUESTS = [
   {id:"yt",name:"Theo dõi kênh YouTube",reward:30,link:"https://www.youtube.com/",once:false},
@@ -345,7 +388,7 @@ const clean = (id, d) => ({id, cloud:true, name:esc(d.name||""), creator:esc(d.c
   cat:CATS.some(c => c.id === d.cat) ? d.cat : "addon", price:Math.max(0, +d.price || 0),
   rating:Math.min(5, +d.rating || 5), size:esc(d.size||"—"), emoji:esc(d.emoji||"📦"),
   c1:/^#[0-9a-f]{6}$/i.test(d.c1) ? d.c1 : "#3c8527", c2:/^#[0-9a-f]{6}$/i.test(d.c2) ? d.c2 : "#7a5230",
-  link:okUrl(d.link) ? d.link : "#", image:okImg(d.image) ? d.image : "", path:esc(d.path||""), shots:[], desc:esc(d.desc||"")});
+  link:okUrl(d.link) ? d.link : "#", image:okImg(d.image) ? d.image : "", path:esc(d.path||""), shots:(Array.isArray(d.shots) ? d.shots : []).filter(okImg).slice(0, 4), desc:esc(d.desc||"")});
 function loadProducts(){
   db.collection("products").orderBy("created","desc").get().then(s => {
     for(let i = P.length - 1; i >= 0; i--) if(P[i].cloud) P.splice(i, 1);
@@ -368,6 +411,9 @@ function modForm(mode){
       <label class="up"><b>Ảnh bìa</b> <small>PNG / JPG / WEBP (tự động thu nhỏ)</small>
         <input id="m_imgf" type="file" accept="image/png,image/jpeg,image/webp"></label>
       <img id="m_prev" class="prev" alt="" hidden>
+      <label class="up"><b>Ảnh giới thiệu</b> <small>Chọn tối đa 4 ảnh PNG / JPG / WEBP cùng lúc (tự động thu nhỏ). Ảnh sẽ hiện thành thư viện trên trang sản phẩm.</small>
+        <input id="m_shots" type="file" multiple accept="image/png,image/jpeg,image/webp"></label>
+      <div id="m_shotprev" class="shotprev"></div>
       <textarea id="m_desc" rows="5" placeholder="Mô tả *" maxlength="1500"></textarea>
       <div class="bar2" id="m_bar" hidden><i id="m_fill"></i></div>
       <p id="m_msg" style="min-height:20px;font-size:14px"></p>
@@ -377,7 +423,12 @@ function bindForm(){
   $("#m_imgf").onchange = async e => {
     const f = e.target.files[0], pv = $("#m_prev");
     if(!f){ pv.hidden = true; return; }
-    try{ pv.src = await shrink(f); pv.hidden = false; }catch(x){ pv.hidden = true; }
+    try{ pv.src = await shrink(f, 900, 300000); pv.hidden = false; }catch(x){ pv.hidden = true; }
+  };
+  $("#m_shots").onchange = async e => {
+    const box = $("#m_shotprev"), fs = [...e.target.files].slice(0, 4); box.innerHTML = "";
+    for(const f of fs){ try{ const im = document.createElement("img"); im.src = await shrink(f, 720, 130000); box.appendChild(im); }catch(x){} }
+    if(e.target.files.length > 4) alert("Chỉ nhận tối đa 4 ảnh giới thiệu, các ảnh còn lại sẽ bị bỏ qua.");
   };
 }
 let SUB = [];
@@ -413,7 +464,7 @@ async function approve(id){
   const pr = prompt("Giá (xu), 0 = miễn phí:", "0"); if(pr === null) return;
   const c = PAL[Math.floor(Math.random() * PAL.length)];
   const d = {name:x.name, creator:x.creator, cat:x.cat, price:Math.max(0, parseInt(pr) || 0), size:x.size || "—", link:x.link,
-    image:okImg(x.image) ? x.image : "", path:x.path || "", desc:x.desc, rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:x.by};
+    image:okImg(x.image) ? x.image : "", shots:(Array.isArray(x.shots) ? x.shots : []).filter(okImg).slice(0, 4), path:x.path || "", desc:x.desc, rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:x.by};
   try{
     const r = await db.collection("products").add(d);
     await db.collection("submissions").doc(id).delete();
@@ -455,7 +506,7 @@ async function cancelSub(id){
   }catch(e){ alert("Không hủy được."); }
 }
 /* Thu nhỏ ảnh về tối đa 1000px, JPEG, để lưu gọn trong Firestore */
-function shrink(file){
+function shrink(file, max = 1000, lim = 600000){
   return new Promise((ok, no) => {
     const fr = new FileReader();
     fr.onerror = () => no();
@@ -463,11 +514,16 @@ function shrink(file){
       const im = new Image();
       im.onerror = () => no();
       im.onload = () => {
-        const k = Math.min(1, 1000 / Math.max(im.width, im.height)), c = document.createElement("canvas");
-        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
-        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-        let q = .85, u = c.toDataURL("image/jpeg", q);
-        while(u.length > 600000 && q > .4){ q -= .1; u = c.toDataURL("image/jpeg", q); }
+        let k = Math.min(1, max / Math.max(im.width, im.height)), u = "";
+        for(let t = 0; t < 6; t++){
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          let q = .85; u = c.toDataURL("image/jpeg", q);
+          while(u.length > lim && q > .45){ q -= .1; u = c.toDataURL("image/jpeg", q); }
+          if(u.length <= lim) break;
+          k *= .8;
+        }
         ok(u);
       };
       im.src = fr.result;
@@ -491,7 +547,10 @@ async function postMod(mode){
   if(!/^https:\/\/(www\.)?mediafire\.com\/[^\s'"()<>]+$/i.test(link)) return bad("Link phải là link MediaFire hợp lệ (bắt đầu bằng https://www.mediafire.com/).");
   btn.classList.add("off"); msg.style.color = "var(--mute)"; msg.textContent = "Đang gửi..."; bar.hidden = true;
   try{
-    d.image = img ? await shrink(img) : "";
+    d.image = img ? await shrink(img, 900, 300000) : "";
+    d.shots = [];
+    for(const f of [...$("#m_shots").files].slice(0, 4)){ try{ d.shots.push(await shrink(f, 720, 130000)); }catch(x){} }
+    if(JSON.stringify(d).length > 900000) throw {code:"image-too-large"};
     d.path = "";
     d.link = link;
     d.size = g("m_size") || "—";
@@ -509,7 +568,7 @@ async function postMod(mode){
       const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã gửi yêu cầu ✓ Quản trị viên sẽ xem xét sớm.";
     }
   }catch(e){
-    bad("Không gửi được. Kiểm tra Firestore Rules và tài khoản." + (e && e.code ? " (" + e.code + ")" : ""));
+    bad(e && e.code === "image-too-large" ? "Ảnh quá nặng, hãy chọn ít ảnh hơn hoặc ảnh nhỏ hơn." : "Không gửi được. Kiểm tra Firestore Rules và tài khoản." + (e && e.code ? " (" + e.code + ")" : ""));
   }
 }
 async function delMod(id){
@@ -585,6 +644,8 @@ const EN = {
 "Tên mod *":"Mod name *","Tác giả *":"Author *","Giá (xu), 0 = miễn phí":"Price (coins), 0 = free","Link tải MediaFire *":"MediaFire download link *",
 "Tải file (.mcaddon / .mcpack / .mcworld / .zip) lên MediaFire rồi dán link vào đây":"Upload your file (.mcaddon / .mcpack / .mcworld / .zip) to MediaFire, then paste the link here",
 "Dung lượng, ví dụ 12 MB (không bắt buộc)":"Size, e.g. 12 MB (optional)","Ảnh bìa":"Cover image","PNG / JPG / WEBP (tự động thu nhỏ)":"PNG / JPG / WEBP (auto-resized)","Mô tả *":"Description *",
+"Ảnh giới thiệu":"Screenshots","Chọn tối đa 4 ảnh PNG / JPG / WEBP cùng lúc (tự động thu nhỏ). Ảnh sẽ hiện thành thư viện trên trang sản phẩm.":"Pick up to 4 PNG / JPG / WEBP images at once (auto-resized). They appear as a gallery on the product page.",
+"Chỉ nhận tối đa 4 ảnh giới thiệu, các ảnh còn lại sẽ bị bỏ qua.":"Only up to 4 screenshots are accepted, the rest will be ignored.","Ảnh quá nặng, hãy chọn ít ảnh hơn hoặc ảnh nhỏ hơn.":"Images are too large, choose fewer or smaller images.","Ảnh trước":"Previous image","Ảnh sau":"Next image",
 "Đăng":"Post","Gửi yêu cầu":"Submit request","Yêu cầu chờ duyệt":"Pending requests","Đang tải...":"Loading...","Không có yêu cầu nào.":"No requests.",
 'Không tải được yêu cầu. Kiểm tra Firestore Rules cho "submissions".':'Could not load requests. Check the Firestore Rules for "submissions".',
 "Tải thử":"Test download","Duyệt":"Approve","Từ chối":"Reject","Xóa":"Delete","Hủy":"Cancel","Chưa có mod nào.":"No mods yet.","Quản trị":"Admin",
