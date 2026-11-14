@@ -344,8 +344,9 @@ function modForm(mode){
       <input id="m_creator" placeholder="Tác giả *" maxlength="40">
       <select id="m_cat">${CATS.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
       ${adm ? '<input id="m_price" type="number" min="0" placeholder="Giá (xu), 0 = miễn phí" value="0">' : ""}
-      <label class="up"><b>File Addon *</b> <small>.mcaddon · .mcpack · .mcworld · .mctemplate · .zip (tối đa 100 MB)</small>
-        <input id="m_file" type="file" accept=".mcaddon,.mcpack,.mcworld,.mctemplate,.zip"></label>
+      <label class="up"><b>Link tải MediaFire *</b> <small>Tải file (.mcaddon / .mcpack / .mcworld / .zip) lên MediaFire rồi dán link vào đây</small>
+        <input id="m_link" type="url" placeholder="https://www.mediafire.com/file/..." maxlength="500"></label>
+      <input id="m_size" placeholder="Dung lượng, ví dụ 12 MB (không bắt buộc)" maxlength="20">
       <label class="up"><b>Ảnh bìa</b> <small>PNG / JPG / WEBP (tự động thu nhỏ)</small>
         <input id="m_imgf" type="file" accept="image/png,image/jpeg,image/webp"></label>
       <img id="m_prev" class="prev" alt="" hidden>
@@ -463,26 +464,19 @@ async function postMod(mode){
   const g = id => $("#" + id).value.trim(), msg = $("#m_msg"), btn = $("#m_btn"), bar = $("#m_bar"), fill = $("#m_fill");
   const bad = t => { msg.style.color = "#ff7b7b"; msg.textContent = t; btn.classList.remove("off"); bar.hidden = true; };
   if(btn.classList.contains("off")) return;
-  const file = $("#m_file").files[0], img = $("#m_imgf").files[0];
+  const img = $("#m_imgf").files[0];
   const d = {name:g("m_name"), creator:g("m_creator"), cat:g("m_cat"), desc:g("m_desc")};
   if(adm) d.price = Math.max(0, parseInt(g("m_price")) || 0);
   if(!d.name || !d.creator || !d.desc) return bad("Vui lòng điền tên, tác giả và mô tả.");
-  if(!file) return bad("Vui lòng chọn file Addon để tải lên.");
-  if(!/\.(mcaddon|mcpack|mcworld|mctemplate|zip)$/i.test(file.name)) return bad("File phải là .mcaddon, .mcpack, .mcworld, .mctemplate hoặc .zip.");
-  if(file.size > 100 * 1048576) return bad("File quá lớn (tối đa 100 MB).");
-  if(!storage) return bad("Chưa bật Firebase Storage cho dự án.");
-  btn.classList.add("off"); msg.style.color = "var(--mute)"; msg.textContent = "Đang tải lên..."; bar.hidden = false; fill.style.width = "0%";
+  const link = g("m_link");
+  if(!link) return bad("Vui lòng dán link MediaFire của file Addon.");
+  if(!/^https:\/\/(www\.)?mediafire\.com\/[^\s'"()<>]+$/i.test(link)) return bad("Link phải là link MediaFire hợp lệ (bắt đầu bằng https://www.mediafire.com/).");
+  btn.classList.add("off"); msg.style.color = "var(--mute)"; msg.textContent = "Đang gửi..."; bar.hidden = true;
   try{
     d.image = img ? await shrink(img) : "";
-    const safe = file.name.replace(/[^\w.\-]+/g, "_");
-    d.path = `${adm ? "addons" : "submissions"}/${user.uid}/${Date.now()}_${safe}`;
-    const ref = storage.ref(d.path);
-    const task = ref.put(file);
-    await new Promise((res, rej) => task.on("state_changed",
-      s => { const p = Math.round(s.bytesTransferred / s.totalBytes * 100); fill.style.width = p + "%"; msg.textContent = "Đang tải lên... " + p + "%"; },
-      rej, res));
-    d.link = await ref.getDownloadURL();
-    d.size = fmtSize(file.size);
+    d.path = "";
+    d.link = link;
+    d.size = g("m_size") || "—";
     d.created = Date.now(); d.by = user.uid;
     if(adm){
       const c = PAL[Math.floor(Math.random() * PAL.length)];
@@ -497,7 +491,7 @@ async function postMod(mode){
       const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã gửi yêu cầu ✓ Quản trị viên sẽ xem xét sớm.";
     }
   }catch(e){
-    bad("Không gửi được. Kiểm tra Storage Rules, Firestore Rules và tài khoản." + (e && e.code ? " (" + e.code + ")" : ""));
+    bad("Không gửi được. Kiểm tra Firestore Rules và tài khoản." + (e && e.code ? " (" + e.code + ")" : ""));
   }
 }
 async function delMod(id){
