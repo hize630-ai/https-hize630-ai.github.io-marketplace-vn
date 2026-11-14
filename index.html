@@ -300,9 +300,9 @@ function earn(){
     <div class="note">Xu chỉ dùng trong trang này để đổi sản phẩm, không phải Minecoin thật của Minecraft. Xu được lưu trên trình duyệt của bạn, nên đổi trình duyệt hoặc xóa dữ liệu sẽ mất xu.${fbOn()&&!user?'<br><a href="#/login" style="color:var(--g2);font-weight:700">Đăng nhập</a> để lưu xu trên mọi thiết bị.':''}</div></main>`;
 }
 /* ===== ĐĂNG NHẬP (Firebase) - điền thông tin dự án của bạn vào đây ===== */
-const FIREBASE_CONFIG = {apiKey:"",authDomain:"",projectId:"",appId:""};
-/* UID của tài khoản quản trị (xem UID ở trang Tài khoản sau khi đăng nhập). Chỉ UID này mới đăng được mod. */
-const ADMIN_UIDS = [""];
+const FIREBASE_CONFIG = {apiKey:"AIzaSyCzsinZCOLvWgrJa1ZEg71XhrNtAs5_u0A",authDomain:"minecraft-vietnam-d77af.firebaseapp.com",projectId:"minecraft-vietnam-d77af",appId:"1:261614589808:web:a5777379ebc77cd36f21b5"};
+/* Email quản trị: đăng nhập bằng email này (đã xác minh) mới đăng được mod. */
+const ADMIN_EMAILS = ["hize630@gmail.com"];
 let user = null, db = null, auth = null, pushT;
 const fbOn = () => !!FIREBASE_CONFIG.apiKey && typeof firebase !== "undefined";
 const DEF = () => ({coins:0,lastDaily:"",streak:0,done:{},owned:[]});
@@ -333,7 +333,8 @@ function doAuth(mode){
 function google(){ auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(authErr); }
 function logout(){ auth.signOut().then(() => { S = DEF(); save(); location.hash = "#/"; }); }
 /* ===== ĐĂNG MOD (chỉ quản trị viên) ===== */
-const isAdmin = () => !!(user && ADMIN_UIDS.includes(user.uid));
+const isAdminEmail = () => !!(user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
+const isAdmin = () => isAdminEmail() && user.emailVerified;
 const okUrl = u => /^https?:\/\/[^\s'"()<>]+$/.test(u || "");
 const PAL = [["#3c8527","#7a5230"],["#2a5db0","#8e44ad"],["#c0392b","#f5b041"],["#154360","#5dade2"],["#1e3d2a","#6c3483"]];
 const clean = (id, d) => ({id, cloud:true, name:esc(d.name||""), creator:esc(d.creator||""),
@@ -381,7 +382,7 @@ async function postMod(){
     const r = await db.collection("products").add(d);
     P.unshift(clean(r.id, d)); admin();
     const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã đăng thành công ✓";
-  }catch(e){ bad("Không đăng được. Kiểm tra Firestore Rules và UID quản trị."); }
+  }catch(e){ bad("Không đăng được. Kiểm tra Firestore Rules và email quản trị."); }
 }
 async function delMod(id){
   if(!isAdmin() || !confirm("Xóa mod này?")) return;
@@ -396,7 +397,7 @@ function login(){
   if(!fbOn()) h = `<p>Chưa cấu hình đăng nhập. Mở file HTML và điền <code>FIREBASE_CONFIG</code> trong phần script.</p>`;
   else if(user) h = `<p>Xin chào, <b>${esc(nameOf(user))}</b></p><p style="color:var(--mute)">${esc(user.email||"")}</p>
     <p><span class="mc"></span> ${S.coins.toLocaleString("vi-VN")} xu · Đã sở hữu ${S.owned.length} sản phẩm</p>
-    ${isAdmin() ? '<a class="btn" href="#/admin">Đăng mod mới</a>' : '<p style="color:var(--mute);font-size:12px;word-break:break-all">UID: ' + esc(user.uid) + '</p>'}
+    ${isAdmin() ? '<a class="btn" href="#/admin">Đăng mod mới</a>' : isAdminEmail() ? '<p style="color:#ff7b7b;font-size:14px">Email quản trị chưa được xác minh. Hãy đăng nhập bằng Google hoặc xác minh email để đăng mod.</p><a class="btn grey" href="#" onclick="auth.currentUser.sendEmailVerification().then(()=>alert(\'Đã gửi email xác minh.\'));return false">Gửi email xác minh</a>' : ''}
     <a class="btn grey" href="#" onclick="logout();return false">Đăng xuất</a>`;
   else h = `<input id="em" type="email" placeholder="Email" autocomplete="email">
     <input id="pw" type="password" placeholder="Mật khẩu (từ 6 ký tự)" autocomplete="current-password">
