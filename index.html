@@ -236,10 +236,10 @@ const yest = () => new Date(Date.now() - 864e5).toISOString().slice(0,10);
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
   if(user && db){ clearTimeout(pushT); pushT = setTimeout(() => db.collection("users").doc(user.uid).set(S).catch(()=>{}), 600); }
-  const b = $("#bal"); if(b) b.textContent = S.coins.toLocaleString("vi-VN");
+  const b = $("#bal"); if(b) b.textContent = isAdmin() ? "∞" : S.coins.toLocaleString("vi-VN");
 }
 const buyBtn = p => {
-  if(p.price===0 || S.owned.includes(p.id)) return `<a class="btn" href="${p.link}" download ${/^https?:/.test(p.link) && !p.link.startsWith(location.origin) ? 'target="_blank"' : ''} rel="noopener">Tải &amp; nạp vào Minecraft</a>`;
+  if(p.price===0 || S.owned.includes(p.id) || isAdmin()) return `<a class="btn" href="${p.link}" download ${/^https?:/.test(p.link) && !p.link.startsWith(location.origin) ? 'target="_blank"' : ''} rel="noopener">Tải &amp; nạp vào Minecraft</a>`;
   if(S.coins >= p.price) return `<a class="btn" href="#" onclick="redeem('${p.id}');return false">Đổi ${p.price.toLocaleString("vi-VN")} xu</a>`;
   return `<a class="btn grey" href="#/earn">Cần thêm ${(p.price-S.coins).toLocaleString("vi-VN")} xu · Kiếm xu</a>`;
 };
@@ -272,7 +272,7 @@ function earn(){
   const ok = done ? ((S.streak-1) % 7) + 1 : (S.lastDaily === yest() ? S.streak % 7 : 0);
   V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › Kiếm xu</div>
     <h1 class="px" style="font-size:36px">Kiếm xu</h1>
-    <p style="color:var(--mute);margin-top:4px">Số dư hiện tại: <b style="color:#fff"><span class="mc"></span> ${S.coins.toLocaleString("vi-VN")} xu</b></p>
+    <p style="color:var(--mute);margin-top:4px">Số dư hiện tại: <b style="color:#fff"><span class="mc"></span> ${isAdmin() ? "∞ (vô hạn)" : S.coins.toLocaleString("vi-VN")} xu</b></p>
     <div class="sec-h" style="margin-top:28px"><h2 class="px">Điểm danh hằng ngày</h2></div>
     <div class="days">${DAILY.map((r,i)=>`<div class="day ${i<ok?"ok":""}">Ngày ${i+1}<b>+${r}</b></div>`).join("")}</div>
     <a class="btn ${done?"off":""}" href="#" onclick="checkin();return false">${done?"Hôm nay đã điểm danh ✓":"Điểm danh nhận xu"}</a>
@@ -335,18 +335,15 @@ function loadProducts(){
     route();
   }).catch(()=>{});
 }
-function admin(){
-  if(!isAdmin()){
-    V.innerHTML = `<main class="wrap"><div class="authbox"><h1 class="px" style="font-size:28px">Chỉ dành cho quản trị viên</h1><p>Hãy đăng nhập bằng tài khoản quản trị của bạn để đăng mod.</p><a class="btn" href="#/login">Đăng nhập</a></div></main>`;
-    return;
-  }
-  const mine = P.filter(p => p.cloud);
-  V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › <a href="#/login">Tài khoản</a> › Đăng mod</div>
-    <div class="authbox"><h1 class="px" style="font-size:28px">Đăng mod mới</h1>
+const NEED = (t, extra="") => `<main class="wrap"><div class="authbox"><h1 class="px" style="font-size:28px">${t}</h1>${extra}</div></main>`;
+function modForm(mode){
+  const adm = mode === "admin";
+  return `<div class="authbox"><h1 class="px" style="font-size:28px">${adm ? "Đăng mod mới" : "Gửi yêu cầu đăng Addon"}</h1>
+      ${adm ? "" : '<p style="color:var(--mute);font-size:14px">Yêu cầu sẽ được quản trị viên xem xét trước khi hiển thị trên trang. Giá do quản trị viên quyết định.</p>'}
       <input id="m_name" placeholder="Tên mod *" maxlength="60">
       <input id="m_creator" placeholder="Tác giả *" maxlength="40">
       <select id="m_cat">${CATS.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
-      <input id="m_price" type="number" min="0" placeholder="Giá (xu), 0 = miễn phí" value="0">
+      ${adm ? '<input id="m_price" type="number" min="0" placeholder="Giá (xu), 0 = miễn phí" value="0">' : ""}
       <label class="up"><b>File Addon *</b> <small>.mcaddon · .mcpack · .mcworld · .mctemplate · .zip (tối đa 100 MB)</small>
         <input id="m_file" type="file" accept=".mcaddon,.mcpack,.mcworld,.mctemplate,.zip"></label>
       <label class="up"><b>Ảnh bìa</b> <small>PNG / JPG / WEBP (tự động thu nhỏ)</small>
@@ -355,20 +352,94 @@ function admin(){
       <textarea id="m_desc" rows="5" placeholder="Mô tả *" maxlength="1500"></textarea>
       <div class="bar2" id="m_bar" hidden><i id="m_fill"></i></div>
       <p id="m_msg" style="min-height:20px;font-size:14px"></p>
-      <a class="btn" id="m_btn" href="#" onclick="postMod();return false">Đăng</a></div>
-    <div class="sec-h"><h2 class="px">Mod đã đăng (${mine.length})</h2></div>
-    <div class="quests">${mine.map(p => `<div class="quest"><div><h3>${p.name}</h3><small>${cn(p.cat)} · ${p.price} xu · ${p.size}</small></div><a class="btn sm grey" href="#" onclick="delMod('${p.id}');return false">Xóa</a></div>`).join("") || '<p style="color:var(--mute)">Chưa có mod nào.</p>'}</div></main>`;
+      <a class="btn" id="m_btn" href="#" onclick="postMod('${mode}');return false">${adm ? "Đăng" : "Gửi yêu cầu"}</a></div>`;
+}
+function bindForm(){
   $("#m_imgf").onchange = async e => {
     const f = e.target.files[0], pv = $("#m_prev");
     if(!f){ pv.hidden = true; return; }
     try{ pv.src = await shrink(f); pv.hidden = false; }catch(x){ pv.hidden = true; }
   };
 }
+let SUB = [];
+function admin(){
+  if(!isAdmin()){
+    V.innerHTML = NEED("Chỉ dành cho quản trị viên", `<p>Hãy đăng nhập bằng tài khoản quản trị của bạn để đăng mod.</p><a class="btn" href="#/login">Đăng nhập</a>`);
+    return;
+  }
+  const mine = P.filter(p => p.cloud);
+  V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › <a href="#/login">Tài khoản</a> › Quản trị</div>
+    <div class="sec-h" style="margin-top:10px"><h2 class="px">Yêu cầu chờ duyệt</h2></div>
+    <div class="quests" id="pend"><p class="empty">Đang tải...</p></div>
+    <div style="height:28px"></div>${modForm("admin")}
+    <div class="sec-h"><h2 class="px">Mod đã đăng (${mine.length})</h2></div>
+    <div class="quests">${mine.map(p => `<div class="quest"><div><h3>${p.name}</h3><small>${cn(p.cat)} · ${p.price} xu · ${p.size}</small></div><a class="btn sm grey" href="#" onclick="delMod('${p.id}');return false">Xóa</a></div>`).join("") || '<p style="color:var(--mute)">Chưa có mod nào.</p>'}</div></main>`;
+  bindForm(); loadPending();
+}
+function loadPending(){
+  db.collection("submissions").get().then(s => {
+    SUB = s.docs.map(x => Object.assign({id:x.id}, x.data())).filter(x => x.status === "pending").sort((a, b) => (a.created || 0) - (b.created || 0));
+    const el = $("#pend"); if(!el) return;
+    el.innerHTML = SUB.map(x => `<div class="quest">${okImg(x.image) ? `<img src="${x.image}" alt="" style="width:84px;aspect-ratio:16/9;object-fit:cover;border:2px solid #000">` : ""}
+      <div><h3>${esc(x.name||"")}</h3><small>${esc(cn(x.cat))} · ${esc(x.size||"—")} · Tác giả: ${esc(x.creator||"")} · Gửi bởi ${esc(x.byEmail||"")}</small></div>
+      ${okUrl(x.link) ? `<a class="btn sm grey" href="${x.link}" target="_blank" rel="noopener">Tải thử</a>` : ""}
+      <a class="btn sm" href="#" onclick="approve('${esc(x.id)}');return false">Duyệt</a>
+      <a class="btn sm grey" href="#" onclick="reject('${esc(x.id)}');return false">Từ chối</a></div>`).join("") || '<p class="empty">Không có yêu cầu nào.</p>';
+  }).catch(() => { const el = $("#pend"); if(el) el.innerHTML = '<p class="empty">Không tải được yêu cầu. Kiểm tra Firestore Rules cho "submissions".</p>'; });
+}
+async function approve(id){
+  if(!isAdmin()) return;
+  const x = SUB.find(v => v.id === id); if(!x) return;
+  if(!okUrl(x.link)) return alert("Link file không hợp lệ.");
+  const pr = prompt("Giá (xu), 0 = miễn phí:", "0"); if(pr === null) return;
+  const c = PAL[Math.floor(Math.random() * PAL.length)];
+  const d = {name:x.name, creator:x.creator, cat:x.cat, price:Math.max(0, parseInt(pr) || 0), size:x.size || "—", link:x.link,
+    image:okImg(x.image) ? x.image : "", path:x.path || "", desc:x.desc, rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:x.by};
+  try{
+    const r = await db.collection("products").add(d);
+    await db.collection("submissions").doc(id).delete();
+    P.unshift(clean(r.id, d)); admin();
+  }catch(e){ alert("Không duyệt được. Kiểm tra Firestore Rules."); }
+}
+async function reject(id){
+  if(!isAdmin() || !confirm("Từ chối và xóa yêu cầu này?")) return;
+  const x = SUB.find(v => v.id === id);
+  try{
+    await db.collection("submissions").doc(id).delete();
+    if(x && /^submissions\//.test(x.path || "") && storage){ try{ await storage.ref(x.path).delete(); }catch(e){} }
+    admin();
+  }catch(e){ alert("Không xóa được."); }
+}
+function submit(){
+  if(!user) return V.innerHTML = NEED("Gửi yêu cầu đăng Addon", `<p>Bạn cần đăng nhập để gửi Addon.</p><a class="btn" href="#/login">Đăng nhập</a>`);
+  if(!user.emailVerified) return V.innerHTML = NEED("Cần xác minh email", `<p>Hãy xác minh email để gửi Addon (đăng nhập bằng Google sẽ được xác minh sẵn).</p>
+    <a class="btn" href="#" onclick="auth.currentUser.sendEmailVerification().then(()=>alert('Đã gửi email xác minh. Sau khi xác minh, hãy đăng nhập lại.'));return false">Gửi email xác minh</a>`);
+  V.innerHTML = `<main class="wrap"><div class="crumb"><a href="#/">Trang chủ</a> › Gửi yêu cầu đăng Addon</div>${modForm("user")}
+    <div class="sec-h"><h2 class="px">Yêu cầu của bạn</h2></div><div class="quests" id="mysub"><p class="empty">Đang tải...</p></div></main>`;
+  bindForm(); loadMine();
+}
+function loadMine(){
+  db.collection("submissions").where("by", "==", user.uid).get().then(s => {
+    SUB = s.docs.map(x => Object.assign({id:x.id}, x.data())).sort((a, b) => (b.created || 0) - (a.created || 0));
+    const el = $("#mysub"); if(!el) return;
+    el.innerHTML = SUB.map(x => `<div class="quest"><div><h3>${esc(x.name||"")}</h3><small>${esc(cn(x.cat))} · ${esc(x.size||"—")} · Đang chờ duyệt</small></div>
+      <a class="btn sm grey" href="#" onclick="cancelSub('${esc(x.id)}');return false">Hủy</a></div>`).join("") || '<p class="empty">Bạn chưa gửi yêu cầu nào đang chờ duyệt.</p>';
+  }).catch(() => {});
+}
+async function cancelSub(id){
+  if(!confirm("Hủy yêu cầu này?")) return;
+  const x = SUB.find(v => v.id === id);
+  try{
+    await db.collection("submissions").doc(id).delete();
+    if(x && x.path && storage){ try{ await storage.ref(x.path).delete(); }catch(e){} }
+    submit();
+  }catch(e){ alert("Không hủy được."); }
+}
 /* Thu nhỏ ảnh về tối đa 1000px, JPEG, để lưu gọn trong Firestore */
 function shrink(file){
   return new Promise((ok, no) => {
     const fr = new FileReader();
-    fr.onerror = () => no(); 
+    fr.onerror = () => no();
     fr.onload = () => {
       const im = new Image();
       im.onerror = () => no();
@@ -386,12 +457,15 @@ function shrink(file){
   });
 }
 const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1).replace(".0","") + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
-async function postMod(){
-  if(!isAdmin()) return;
+async function postMod(mode){
+  const adm = mode === "admin";
+  if(adm ? !isAdmin() : !(user && user.emailVerified)) return;
   const g = id => $("#" + id).value.trim(), msg = $("#m_msg"), btn = $("#m_btn"), bar = $("#m_bar"), fill = $("#m_fill");
   const bad = t => { msg.style.color = "#ff7b7b"; msg.textContent = t; btn.classList.remove("off"); bar.hidden = true; };
+  if(btn.classList.contains("off")) return;
   const file = $("#m_file").files[0], img = $("#m_imgf").files[0];
-  const d = {name:g("m_name"), creator:g("m_creator"), cat:g("m_cat"), price:Math.max(0, parseInt(g("m_price")) || 0), desc:g("m_desc")};
+  const d = {name:g("m_name"), creator:g("m_creator"), cat:g("m_cat"), desc:g("m_desc")};
+  if(adm) d.price = Math.max(0, parseInt(g("m_price")) || 0);
   if(!d.name || !d.creator || !d.desc) return bad("Vui lòng điền tên, tác giả và mô tả.");
   if(!file) return bad("Vui lòng chọn file Addon để tải lên.");
   if(!/\.(mcaddon|mcpack|mcworld|mctemplate|zip)$/i.test(file.name)) return bad("File phải là .mcaddon, .mcpack, .mcworld, .mctemplate hoặc .zip.");
@@ -401,7 +475,7 @@ async function postMod(){
   try{
     d.image = img ? await shrink(img) : "";
     const safe = file.name.replace(/[^\w.\-]+/g, "_");
-    d.path = `addons/${user.uid}/${Date.now()}_${safe}`;
+    d.path = `${adm ? "addons" : "submissions"}/${user.uid}/${Date.now()}_${safe}`;
     const ref = storage.ref(d.path);
     const task = ref.put(file);
     await new Promise((res, rej) => task.on("state_changed",
@@ -409,13 +483,21 @@ async function postMod(){
       rej, res));
     d.link = await ref.getDownloadURL();
     d.size = fmtSize(file.size);
-    const c = PAL[Math.floor(Math.random() * PAL.length)];
-    Object.assign(d, {rating:5, emoji:"📦", c1:c[0], c2:c[1], created:Date.now(), by:user.uid});
-    const r = await db.collection("products").add(d);
-    P.unshift(clean(r.id, d)); admin();
-    const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã đăng thành công ✓";
+    d.created = Date.now(); d.by = user.uid;
+    if(adm){
+      const c = PAL[Math.floor(Math.random() * PAL.length)];
+      Object.assign(d, {rating:5, emoji:"📦", c1:c[0], c2:c[1]});
+      const r = await db.collection("products").add(d);
+      P.unshift(clean(r.id, d)); admin();
+      const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã đăng thành công ✓";
+    } else {
+      Object.assign(d, {status:"pending", byEmail:user.email || ""});
+      await db.collection("submissions").add(d);
+      submit();
+      const m = $("#m_msg"); m.style.color = "#52a535"; m.textContent = "Đã gửi yêu cầu ✓ Quản trị viên sẽ xem xét sớm.";
+    }
   }catch(e){
-    bad("Không đăng được. Kiểm tra Storage Rules, Firestore Rules và email quản trị." + (e && e.code ? " (" + e.code + ")" : ""));
+    bad("Không gửi được. Kiểm tra Storage Rules, Firestore Rules và tài khoản." + (e && e.code ? " (" + e.code + ")" : ""));
   }
 }
 async function delMod(id){
@@ -432,8 +514,8 @@ function login(){
   let h;
   if(!fbOn()) h = `<p>Chưa cấu hình đăng nhập. Mở file HTML và điền <code>FIREBASE_CONFIG</code> trong phần script.</p>`;
   else if(user) h = `<p>Xin chào, <b>${esc(nameOf(user))}</b></p><p style="color:var(--mute)">${esc(user.email||"")}</p>
-    <p><span class="mc"></span> ${S.coins.toLocaleString("vi-VN")} xu · Đã sở hữu ${S.owned.length} sản phẩm</p>
-    ${isAdmin() ? '<a class="btn" href="#/admin">Đăng mod mới</a>' : isAdminEmail() ? '<p style="color:#ff7b7b;font-size:14px">Email quản trị chưa được xác minh. Hãy đăng nhập bằng Google hoặc xác minh email để đăng mod.</p><a class="btn grey" href="#" onclick="auth.currentUser.sendEmailVerification().then(()=>alert(\'Đã gửi email xác minh.\'));return false">Gửi email xác minh</a>' : ''}
+    <p><span class="mc"></span> ${isAdmin() ? "∞ (vô hạn)" : S.coins.toLocaleString("vi-VN")} xu · Đã sở hữu ${isAdmin() ? "tất cả" : S.owned.length} sản phẩm</p>
+    ${isAdmin() ? '<a class="btn" href="#/admin">Quản trị &amp; đăng mod</a>' : isAdminEmail() ? '<p style="color:#ff7b7b;font-size:14px">Email quản trị chưa được xác minh. Hãy đăng nhập bằng Google hoặc xác minh email để đăng mod.</p><a class="btn grey" href="#" onclick="auth.currentUser.sendEmailVerification().then(()=>alert(\'Đã gửi email xác minh.\'));return false">Gửi email xác minh</a>' : '<a class="btn" href="#/submit">Gửi yêu cầu đăng Addon</a>'}
     <a class="btn grey" href="#" onclick="logout();return false">Đăng xuất</a>`;
   else h = `<input id="em" type="email" placeholder="Email" autocomplete="email">
     <input id="pw" type="password" placeholder="Mật khẩu (từ 6 ký tự)" autocomplete="current-password">
@@ -447,14 +529,14 @@ function login(){
 function route(){
   const [,t,a] = location.hash.split("/");
   window.scrollTo(0,0);
-  if(t==="p") item(a); else if(t==="c") list(a||"all"); else if(t==="earn") earn(); else if(t==="login") login(); else if(t==="admin") admin(); else home();
-  document.querySelectorAll("nav a").forEach(l => l.classList.toggle("on", l.dataset.n === (t==="c"?a:t==="p"?(P.find(x=>x.id==a)||{}).cat:t==="earn"?"earn":"home")));
+  if(t==="p") item(a); else if(t==="c") list(a||"all"); else if(t==="earn") earn(); else if(t==="login") login(); else if(t==="admin") admin(); else if(t==="submit") submit(); else home();
+  document.querySelectorAll("nav a").forEach(l => l.classList.toggle("on", l.dataset.n === (t==="c"?a:t==="p"?(P.find(x=>x.id==a)||{}).cat:t==="earn"?"earn":(t==="submit"||t==="admin")?"submit":"home")));
   save();
 }
 function buildNav(){
   $("#nav").innerHTML = `<a href="#/" data-n="home">Trang chủ</a>` +
     CATS.map(c => `<a href="#/c/${c.id}" data-n="${c.id}">${c.name}</a>`).join("") +
-    `<a href="#/earn" data-n="earn">Kiếm xu</a><a href="#/login" class="acc m-only">Đăng nhập</a>`;
+    `<a href="#/submit" data-n="submit">Gửi Addon</a><a href="#/earn" data-n="earn">Kiếm xu</a><a href="#/login" class="acc m-only">Đăng nhập</a>`;
 }
 buildNav(); updateAcc();
 $("#menuBtn").onclick = () => $("#nav").classList.toggle("open");
